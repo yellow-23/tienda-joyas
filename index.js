@@ -59,47 +59,44 @@ app.get('/joyas', async (req, res) => {
 // ----------------------
 // GET /joyas/filtros
 // ----------------------
-app.get('/joyas/filtros', async (req, res) => {
+app.get('/joyas', async (req, res, next) => {
   try {
-    const { precio_max, precio_min, categoria, metal } = req.query;
+    const { limits = 10, page = 1, order_by = 'id_ASC' } = req.query;
 
-    // Construir consulta de forma segura (parametrizada)
-    let baseQuery = 'SELECT * FROM inventario WHERE 1=1';
-    const values = [];
-    let index = 1;
+    const [campo, direccion] = (order_by || 'id_ASC').split('_');
+    const camposPermitidos = ['id', 'nombre', 'categoria', 'metal', 'precio', 'stock'];
+    const direccionesPermitidas = ['ASC', 'DESC'];
 
-    if (precio_min) {
-      baseQuery += ` AND precio >= $${index}`;
-      values.push(Number(precio_min));
-      index++;
-    }
+    const campoOrder = camposPermitidos.includes(campo) ? campo : 'id';
+    const dirOrder = direccionesPermitidas.includes(direccion) ? direccion : 'ASC';
 
-    if (precio_max) {
-      baseQuery += ` AND precio <= $${index}`;
-      values.push(Number(precio_max));
-      index++;
-    }
+    const limit = Number(limits) || 10;
+    const offset = (Number(page) - 1) * limit;
 
-    if (categoria) {
-      baseQuery += ` AND categoria = $${index}`;
-      values.push(categoria);
-      index++;
-    }
+    // total joyas
+    const { rows: totalRows } = await pool.query('SELECT COUNT(*) AS total FROM inventario');
+    const totalJoyas = Number(totalRows[0].total);
 
-    if (metal) {
-      baseQuery += ` AND metal = $${index}`;
-      values.push(metal);
-      index++;
-    }
+    // stock total
+    const { rows: stockRows } = await pool.query('SELECT COALESCE(SUM(stock), 0) AS stock_total FROM inventario');
+    const stockTotal = Number(stockRows[0].stock_total);
 
-    const { rows } = await pool.query(baseQuery, values);
+    // consulta paginada y ordenada (con orden validado, sin SQL injection)
+    const query = `
+      SELECT * FROM inventario
+      ORDER BY ${campoOrder} ${dirOrder}
+      LIMIT $1 OFFSET $2
+    `;
+    const { rows } = await pool.query(query, [limit, offset]);
 
-    res.json(rows);
+    const hateoas = buildJoyasHateoas(rows, { totalJoyas, stockTotal });
+
+    res.json(hateoas);
   } catch (error) {
-    console.error('Error en GET /joyas/filtros:', error);
-    res.status(500).json({ error: 'Error interno en la consulta filtrada' });
+    next(error);
   }
 });
+
 
 // ----------------------
 // Arrancar servidor

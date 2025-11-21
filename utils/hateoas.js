@@ -1,6 +1,6 @@
 // utils/hateoas.js
-export const buildJoyasHateoas = (joyas, totalJoyas) => {
-  const results = joyas.map(j => ({
+export const buildJoyasHateoas = (joyas, { totalJoyas, stockTotal }) => {
+  const results = joyas.map((j) => ({
     name: j.nombre,
     href: `/joyas/${j.id}`,
     categoria: j.categoria,
@@ -11,6 +11,7 @@ export const buildJoyasHateoas = (joyas, totalJoyas) => {
 
   return {
     totalJoyas,
+    stockTotal,
     results,
   };
 };
